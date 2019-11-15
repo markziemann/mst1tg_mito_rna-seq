@@ -1,6 +1,6 @@
 library("DESeq2")
 library("mitch")
-
+library("gplots")
 
 # obtain the count matrix
 download.file("https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE106201&format=file&file=GSE106201%5FMst1TgGal3KO%5Fcounts%2Etsv%2Egz",destfile="GSE106201_Mst1TgGal3KO_counts.tsv.gz")
@@ -41,3 +41,25 @@ res<-mitch_calc(y,genesets=genesets)
 mitch_plots(res,outfile="plots.pdf")
 mitch_report(res,outfile="plots.html")
 
+# now generate a heatmap to show how consistent this expression is
+mito<-as.character(gt[which(gt$genenames %in%
+    names(res$detailed_sets$`RESPIRATORY ELECTRON TRANSPORT`)  ),1])
+
+mtdna<-rownames(x)[grep("_mt-",rownames(de))]
+
+# normalise by library size
+xx<-x/colMeans(x)*1000000
+
+# make a heatmap
+pdf("mito_heatmap1.pdf")
+colfunc <- colorRampPalette(c("blue", "white", "red"))
+
+xxx<-xx[which(rownames(xx) %in% mito),] 
+heatmap.2( as.matrix( xxx ), col=colfunc(25),scale="row", trace="none",
+    margins = c(6,15), cexRow=.4, main="respiratory electron transport")
+
+xxx<-xx[which(rownames(xx) %in% mtdna),]
+heatmap.2( as.matrix( xxx ), col=colfunc(25),scale="row", trace="none",
+    margins = c(20,15), cexRow=.6, main="mtDNA genes")
+
+dev.off()
