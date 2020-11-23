@@ -1,0 +1,246 @@
+---
+title: "Effect of Mst1-TG in young and old mice"
+author: "Mark Ziemann"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+theme: cosmo
+---
+
+Source: https://github.com/markziemann/mst1tg_mito_rna-seq
+
+## Loading packages
+
+```{r,packages}
+
+# to be run in R4
+suppressPackageStartupMessages({
+  library("tidyverse")
+  library("reshape2")
+  library("gplots")
+  library("mitch")
+})
+
+```
+
+## Import profiling data
+
+```{r,import_data}
+
+young <- read.csv("Mst1TG_young_deseq.tsv",sep="\t")
+rownames(young) <- sapply((strsplit(rownames(young),"\\.")),"[[",1)
+old <- read.csv("Mst1TG_old_deseq.tsv",sep="\t")
+rownames(old) <- sapply((strsplit(rownames(old),"\\.")),"[[",1)
+x <- list("young" = young , "old" = old)
+
+# import these in again for heatmaps
+young <- read.csv("Mst1TG_young_deseq.tsv",sep="\t")
+old <- read.csv("Mst1TG_old_deseq.tsv",sep="\t")
+
+```
+
+## Gene sets
+
+```{r,genesets}
+
+gsets <- gmt_import("../ref/ReactomePathways_mouse.gmt")
+
+# gene accession to symbol mapping
+gt <- read.csv("../ref/mart_export.txt",sep="\t")
+gt <- gt[,c(1,4)]
+
+```
+
+## mitch
+
+Lets begin with priority by significance.
+
+```{r,mitch1,fig.height=8,fig.width=8}
+
+yy <- mitch_import(x, DEtype="deseq2", geneTable=gt)
+res <- mitch_calc(yy, gsets, priority="significance")
+head(res$enrichment_result,20)
+unlink("Mst1TG_young_and_old_sig_mitch.html")
+# top N gene heatmap
+mitch_report(res, outfile = "Mst1TG_young_and_old_sig_mitch.html")
+
+# heatmaps of top sets by significance
+# colour scheme
+colfunc <- colorRampPalette(c("blue", "white", "red"))
+
+topsets <- head(res$enrichment_result,50)$set
+mytopsets <- gsets[which(names( gsets ) %in% topsets)]
+yo <- young[,7:ncol(young)]
+colnames(yo) <- paste("y",colnames(yo))
+ol <- old[,7:ncol(old)]
+colnames(ol) <- paste("o",colnames(ol))
+mx <- merge(yo,ol,by=0)
+rownames(mx) <- mx$Row.names
+mx$Row.names = NULL
+
+i = 1
+par(mar = c(10, 8, 8, 4) + 0.2)
+for ( i in seq_along(mytopsets) ) {
+  g <- as.vector(unlist(mytopsets[i]))
+  symbol <- sapply((strsplit(rownames(mx)," ")),"[[",2)
+  z <- mx[which(symbol %in% g),]
+  SETNAME=names(mytopsets[i])
+  heatmap.2( as.matrix(z), col=colfunc(25),scale="row",
+   trace="none",margins = c(6,20), cexRow=.4, cexCol=.8)
+  mtext(SETNAME)
+}
+
+```
+
+Now prioritise by effect size.
+
+```{r,mitch2,fig.height=8,fig.width=8}
+
+res <- mitch_calc(yy, gsets, priority = "effect")
+head(res$enrichment_result,20)
+unlink("Mst1TG_young_and_old_eff_mitch.html")
+mitch_report(res, outfile = "Mst1TG_young_and_old_eff_mitch.html")
+
+# heatmaps of top sets by effect size
+topsets <- head(res$enrichment_result,50)$set
+mytopsets <- gsets[which(names( gsets ) %in% topsets)]
+i=1
+par(mar = c(10, 8, 8, 4) + 0.2)
+for ( i in seq_along(mytopsets) ) {
+  g <- as.vector(unlist(mytopsets[i]))
+  symbol <- sapply((strsplit(rownames(mx)," ")),"[[",2)
+  z <- mx[which(symbol %in% g),]
+  SETNAME = names(mytopsets[i])
+  heatmap.2( as.matrix(z), col = colfunc(25),scale = "row",
+   trace="none",margins = c(6,20), cexRow = .4, cexCol = .8)
+  mtext(SETNAME)
+}
+
+```
+
+Now prioritise by discordant effect size.
+
+```{r,mitch3,fig.height=8,fig.width=8}
+
+res <- mitch_calc(yy, gsets, priority = "SD")
+head(res$enrichment_result,20)
+unlink("Mst1TG_young_and_old_dis_mitch.html")
+mitch_report(res, outfile = "Mst1TG_young_and_old_dis_mitch.html")
+
+# heatmaps of top sets by discordant size
+topsets <- head(res$enrichment_result,50)$set
+mytopsets <- gsets[which(names( gsets ) %in% topsets)]
+i=1
+par(mar = c(10, 8, 8, 4) + 0.2)
+for ( i in seq_along(mytopsets) ) {
+  g <- as.vector(unlist(mytopsets[i]))
+  symbol <- sapply((strsplit(rownames(mx)," ")),"[[",2)
+  z <- mx[which(symbol %in% g),]
+  SETNAME = names(mytopsets[i])
+  heatmap.2( as.matrix(z), col = colfunc(25),scale = "row",
+   trace="none",margins = c(6,20), cexRow = .4, cexCol = .8)
+  mtext(SETNAME)
+}
+
+```
+
+## Custom gene set analysis
+
+Run mitch with some hand-picked gene sets that are relevant to the Mst1 model.
+
+```{r,mitch_custom1,fig.height=8,fig.width=8}
+
+# gene sets of interest
+gsets <- gmt_import("../ref/pathways_of_interest_mouse.gmt")
+
+# mitch pathways of interest
+yy <- mitch_import(x, DEtype="deseq2", geneTable=gt)
+res <- mitch_calc(yy, gsets, priority="significance")
+head(res$enrichment_result,20)
+unlink("Mst1TG_young_and_old_pathwayofinterest_mitch.html")
+# top N gene heatmap
+mitch_report(res, outfile = "Mst1TG_young_and_old_pathwayofinterest_mitch.html")
+
+# heatmaps of pathways of interest
+# colour scheme
+colfunc <- colorRampPalette(c("blue", "white", "red"))
+
+topsets <- head(res$enrichment_result,50)$set
+mytopsets <- gsets[which(names( gsets ) %in% topsets)]
+yo <- young[,7:ncol(young)]
+colnames(yo) <- paste("y",colnames(yo))
+ol <- old[,7:ncol(old)]
+colnames(ol) <- paste("o",colnames(ol))
+mx <- merge(yo,ol,by=0)
+rownames(mx) <- mx$Row.names
+mx$Row.names = NULL
+
+i = 1
+par(mar = c(10, 8, 8, 4) + 0.2)
+for ( i in seq_along(mytopsets) ) {
+  g <- as.vector(unlist(mytopsets[i]))
+  symbol <- sapply((strsplit(rownames(mx)," ")),"[[",2)
+  z <- mx[which(symbol %in% g),]
+  SETNAME=names(mytopsets[i])
+  heatmap.2( as.matrix(z), col=colfunc(25),scale="row",
+   trace="none",margins = c(6,20), cexRow=.4, cexCol=.8)
+  mtext(SETNAME)
+}
+
+```
+
+## Mitochondrial complexes
+
+```{r,mito,fig.height=8,fig.width=8}
+
+mt <- gmt_import("../ref/mt_complexes_mouse.gmt")
+
+# have a look and check the gene names are correct
+mt
+
+# mitch pathways of interest
+res <- mitch_calc(yy, mt, priority="effect",minsetsize=3)
+head(res$enrichment_result,20)
+unlink("Mst1TG_young_and_old_mitocomplex_mitch.html")
+# top N gene heatmap
+mitch_report(res, outfile = "Mst1TG_young_and_old_mitocomplex_mitch.html")
+
+mytopsets <- head(res$enrichment_result,50)$set
+
+i = 1
+par(mar = c(10, 8, 8, 4) + 0.2)
+
+for ( i in seq_along(mt) ) {
+  g <- as.vector(unlist(mt[i]))
+  symbol <- sapply((strsplit(rownames(mx)," ")),"[[",2)
+  z <- mx[which(symbol %in% g),]
+  SETNAME=mytopsets[i]
+  heatmap.2( as.matrix(z), col=colfunc(25),scale="row",
+   trace="none",margins = c(6,20), cexRow=.8, cexCol=.8)
+  mtext(SETNAME)
+}
+
+# now 1D mitch for young and old to create beeswarm charts
+young <- yy[,1,drop=FALSE] 
+res <- mitch_calc(young, mt, priority="effect",minsetsize=3)
+head(res$enrichment_result,20)
+unlink("Mst1TG_young_mitocomplex_mitch.html")
+mitch_report(res, outfile = "Mst1TG_young_mitocomplex_mitch.html")
+
+old <- yy[,2,drop=FALSE]
+res <- mitch_calc(old, mt, priority="effect",minsetsize=3)
+head(res$enrichment_result,20)
+unlink("Mst1TG_old_mitocomplex_mitch.html")
+mitch_report(res, outfile = "Mst1TG_old_mitocomplex_mitch.html")
+
+```
+
+## System information
+
+```{r,sessioninfo}
+
+sessionInfo()
+
+```
+
